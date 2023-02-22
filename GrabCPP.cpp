@@ -39,9 +39,10 @@ protected:
 	virtual BOOL Run();
 };
 
-SapMyProcessing::SapMyProcessing(SapBuffer* pBuffers, SapProCallback pCallback, void* pContext)
-	: SapProcessing(pBuffers, pCallback, pContext)
-{}
+SapMyProcessing::SapMyProcessing(SapBuffer* pBuffers, SapProCallback pCallback, void* pContext) : SapProcessing(pBuffers, pCallback, pContext)
+{
+
+}
 
 SapMyProcessing::~SapMyProcessing()
 {
@@ -99,7 +100,8 @@ BOOL SapMyProcessing::Run()
 }
 
 // Information to pass to callbacks
-struct TransferContext {
+struct TransferContext
+{
 	std::atomic_int frameGrabCount = 0, frameProcessingCount = 0;
 	std::shared_ptr<SapMyProcessing> processing;
 };
@@ -125,7 +127,6 @@ void processingCallback(SapProCallbackInfo* info)
 }
 
 // Static Functions
-//static void XferCallback(SapXferCallbackInfo *pInfo);
 static BOOL GetOptions(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName);
 static BOOL GetOptionsFromCommandLine(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName);
 
@@ -160,36 +161,19 @@ int main(int argc, char* argv[])
 
    SapAcquisition Acq;
    SapAcqDevice AcqDevice;
-   //SapBufferWithTrash Buffers;
    SapBuffer Buffers;
-
-   //std::unique_ptr<SapBuffer> Buffers;
-
-   //SapTransfer AcqToBuf = SapAcqToBuf(&Acq, &Buffers);
-   //SapTransfer AcqDeviceToBuf = SapAcqDeviceToBuf(&AcqDevice, &Buffers);
-   //SapTransfer* Xfer = NULL;
 
    std::unique_ptr<SapTransfer> Transfer;
 
-   //SapView View;
    SapLocation loc(acqServerName, acqDeviceNumber);
 
    if (SapManager::GetResourceCount(acqServerName, SapManager::ResourceAcq) > 0)
    {
       Acq = SapAcquisition(loc, configFilename);
-	  //Buffers = SapBufferWithTrash(maxFrameCount, &Acq);
 	  Buffers = SapBuffer(maxFrameCount, &Acq);
 
-	  //Buffers = std::make_unique<SapBufferWithTrash>(maxFrameCount, &Acq);
-
-	  //View = SapView(&Buffers, SapHwndAutomatic);
-	  //AcqToBuf = SapAcqToBuf(&Acq, &Buffers, XferCallback, &View);
-	  //Xfer = &AcqToBuf;
-
 	  Transfer = std::make_unique<SapAcqToBuf>(&Acq, &Buffers, transferCallback, &context);
-	  //Transfer = std::make_unique<SapAcqToBuf>(&Acq, Buffers.get(), transferCallback, &context);
 	  context.processing = std::make_shared<SapMyProcessing>(&Buffers, processingCallback, &context);
-	  //context.processing = std::make_shared<SapMyProcessing>(Buffers.get(), processingCallback, &context);
 
       // Create acquisition object
       if (!Acq.Create())
@@ -203,19 +187,10 @@ int main(int argc, char* argv[])
       else
          AcqDevice = SapAcqDevice(loc, configFilename);
 
-      //Buffers = SapBufferWithTrash(maxFrameCount, &AcqDevice);
 	  Buffers = SapBuffer(maxFrameCount, &AcqDevice);
 
-	  //Buffers = std::make_unique<SapBufferWithTrash>(maxFrameCount, &AcqDevice);
-
-      //View = SapView(&Buffers, SapHwndAutomatic);
-      //AcqDeviceToBuf = SapAcqDeviceToBuf(&AcqDevice, &Buffers, XferCallback, &View);
-      //Xfer = &AcqDeviceToBuf;
-
 	  Transfer = std::make_unique<SapAcqDeviceToBuf>(&AcqDevice, &Buffers, transferCallback, &context);
-	  //Transfer = std::make_unique<SapAcqDeviceToBuf>(&AcqDevice, Buffers.get(), transferCallback, &context);
 	  context.processing = std::make_shared<SapMyProcessing>(&Buffers, processingCallback, &context);
-	  //context.processing = std::make_shared<SapMyProcessing>(Buffers.get(), processingCallback, &context);
 
       // Create acquisition object
       if (!AcqDevice.Create())
@@ -226,48 +201,25 @@ int main(int argc, char* argv[])
    if (!Buffers.Create())
 	   goto FreeHandles;
 
-   //if (!(*Buffers).Create())
-   //   goto FreeHandles;
-
-   // Create transfer object
-   //if (Xfer && !Xfer->Create())
-   //   goto FreeHandles;
-
    if (!Transfer->Create())
 	   goto FreeHandles;
 
    if (!context.processing->Create())
 	   goto FreeHandles;
 
-   //// Create view object
-   //if (!View.Create())
-   //   goto FreeHandles;
-
    // Grab
-   //Xfer->Grab();
-
    Transfer->Grab();
-   
-   //printf("Press any key to stop grab\n");
-   //CorGetch();
 
    // Wait for the camera to grab all frames
    while (context.frameGrabCount < maxFrameCount);
 
    // Stop grab
-   //Xfer->Freeze();
-   //if (!Xfer->Wait(5000))
-   //   printf("Grab could not stop properly.\n");
-
    Transfer->Freeze();
    if (!Transfer->Wait(5000))
 	   printf("Grab could not stop properly.\n");
 
    // Wait for processing to complete
    while (context.frameProcessingCount < maxFrameCount);
-
-   //printf("Press any key to stop grab\n");
-   //CorGetch();
 
    FreeHandles:
    printf("Press any key to terminate\n");
@@ -276,19 +228,12 @@ int main(int argc, char* argv[])
    //unregister the acquisition callback
    Acq.UnregisterCallback();
 
-   //// Destroy view object
-   //if (!View.Destroy()) return FALSE;
-
-   // Destroy transfer object
-   //if (Xfer && *Xfer && !Xfer->Destroy()) return FALSE;
-
    if (context.processing->Destroy()) return FALSE;
 
    if (Transfer->Destroy()) return FALSE;
 
    // Destroy buffer object
    if (!Buffers.Destroy()) return FALSE;
-   //if (!(*Buffers).Destroy()) return FALSE;
 
    // Destroy acquisition object
    if (!Acq.Destroy()) return FALSE;
@@ -299,18 +244,6 @@ int main(int argc, char* argv[])
    return 0;
 }
 
-
-//static void XferCallback(SapXferCallbackInfo *pInfo)
-//{
-//   SapView *pView = (SapView*)pInfo->GetContext();
-//   // refresh view
-//   pView->Show();
-//
-//   // get the view buffer
-//   SapBuffer *pBuffer = (SapBuffer *)pView->GetBuffer();
-//
-//   std::cout << "The memory address of the SapBuffer pointer is: " << pBuffer << std::endl;
-//}
 
 static BOOL GetOptions(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName)
 {

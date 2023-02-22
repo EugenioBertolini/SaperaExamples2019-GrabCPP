@@ -111,6 +111,26 @@ void transferCallback(SapXferCallbackInfo* info)
         // Execute Run() for this frame
         context->processing->ExecuteNext();
     }
+
+    SapTransfer* pXfer = info->GetTransfer();
+    static float lastframerate = 0.0f;
+    if (pXfer->UpdateFrameRateStatistics()) {
+      SapXferFrameRateInfo* pFrameRateInfo = pXfer->GetFrameRateStatistics();
+      float framerate = 0.0f;
+
+      if (pFrameRateInfo->IsLiveFrameRateAvailable())
+          framerate = pFrameRateInfo->GetLiveFrameRate();
+
+      // check if frame rate is stalled
+      if (pFrameRateInfo->IsLiveFrameRateStalled()) {
+          printf("Live frame rate is stalled.\n");
+      }
+      // update FPS only if the value changed by +/- 0.1
+      else if ((framerate > 0.0f) && (abs(lastframerate - framerate) > 0.001f)) {
+          printf("Grabbing at %.3f frames/sec\n", framerate);
+          lastframerate = framerate;
+      }
+    }
 }
 
 // Processing callback is called after Run()
@@ -123,7 +143,7 @@ void processingCallback(SapProCallbackInfo* info)
 }
 
 // Static Functions
-static void XferCallback(SapXferCallbackInfo *pInfo);
+//static void XferCallback(SapXferCallbackInfo *pInfo);
 static BOOL GetOptions(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName);
 static BOOL GetOptionsFromCommandLine(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName);
 
@@ -134,9 +154,9 @@ int main(int argc, char* argv[])
     const int maxFrameCount = 3000;
 
     // Configs
-    UINT32   acqDeviceNumber;
-    char*    acqServerName = new char[CORSERVER_MAX_STRLEN];
-    char*    configFilename = new char[MAX_PATH];
+    UINT32 acqDeviceNumber;
+    char* acqServerName = new char[CORSERVER_MAX_STRLEN];
+    char* configFilename = new char[MAX_PATH];
 
     printf("Sapera Console Grab Example (C++ version)\n");
 
@@ -246,36 +266,25 @@ int main(int argc, char* argv[])
 }
 
 
-static void XferCallback(SapXferCallbackInfo *pInfo)
-{
-    SapView *pView = (SapView *)pInfo->GetContext();
-
-    // refresh view
-    pView->Show();
-
-    // refresh framerate
-    static float lastframerate = 0.0f;
-
-    SapTransfer* pXfer = pInfo->GetTransfer();
-    if (pXfer->UpdateFrameRateStatistics())
-    {
-        SapXferFrameRateInfo* pFrameRateInfo = pXfer->GetFrameRateStatistics();
-        float framerate = 0.0f;
-
-        if (pFrameRateInfo->IsLiveFrameRateAvailable())
-            framerate = pFrameRateInfo->GetLiveFrameRate();
-
-        // check if frame rate is stalled
-        if (pFrameRateInfo->IsLiveFrameRateStalled()) {
-            printf("Live frame rate is stalled.\n");
-        }
-        // update FPS only if the value changed by +/- 0.1
-        else if ((framerate > 0.0f) && (abs(lastframerate - framerate) > 0.1f)) {
-            printf("Grabbing at %.1f frames/sec\n", framerate);
-            lastframerate = framerate;
-        }
-    }
-}
+//static void XferCallback(SapXferCallbackInfo *pInfo)
+//{
+//    SapTransfer* pXfer = pInfo->GetTransfer();
+//    if (pXfer->UpdateFrameRateStatistics())
+//    {
+//        SapXferFrameRateInfo* pFrameRateInfo = pXfer->GetFrameRateStatistics();
+//        float framerate = 0.0f;
+//
+//        if (pFrameRateInfo->IsLiveFrameRateAvailable())
+//            framerate = pFrameRateInfo->GetLiveFrameRate();
+//
+//        // check if frame rate is stalled
+//        if (pFrameRateInfo->IsLiveFrameRateStalled()) {
+//            printf("Live frame rate is stalled.\n");
+//        }
+//        // print FPS
+//        printf("Grabbing at %.2f frames/sec\n", framerate);
+//    }
+//}
 
 static BOOL GetOptions(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName)
 {

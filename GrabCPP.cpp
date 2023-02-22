@@ -32,11 +32,11 @@ std::string fileName;
 class SapMyProcessing : public SapProcessing
 {
 public:
-	SapMyProcessing(SapBuffer* pBuffers, SapProCallback pCallback, void* pContext);
-	virtual ~SapMyProcessing();
+  SapMyProcessing(SapBuffer* pBuffers, SapProCallback pCallback, void* pContext);
+  virtual ~SapMyProcessing();
 
 protected:
-	virtual BOOL Run();
+  virtual BOOL Run();
 };
 
 SapMyProcessing::SapMyProcessing(SapBuffer* pBuffers, SapProCallback pCallback, void* pContext) : SapProcessing(pBuffers, pCallback, pContext)
@@ -46,84 +46,82 @@ SapMyProcessing::SapMyProcessing(SapBuffer* pBuffers, SapProCallback pCallback, 
 
 SapMyProcessing::~SapMyProcessing()
 {
-	if (m_bInitOK) Destroy();
+  if (m_bInitOK) Destroy();
 }
 
 BOOL SapMyProcessing::Run()
 {
-	// Get the current buffer index
-	const int proIndex = GetIndex();
+  // Get the current buffer index
+  const int proIndex = GetIndex();
 
-	// If this is not true, buffer has overflown
-	SapBuffer::State state;
-	bool goodContent = m_pBuffers->GetState(proIndex, &state) && state == SapBuffer::StateFull;
+  // If this is not true, buffer has overflown
+  SapBuffer::State state;
+  bool goodContent = m_pBuffers->GetState(proIndex, &state) && state == SapBuffer::StateFull;
 
-	//std::cout << (state == SapBuffer::StateFull) << std::endl;
+  if (goodContent) {
+	  void* inAddress = nullptr;
+	  m_pBuffers->GetAddress(proIndex, &inAddress);
+	  int inSize = 0;
+	  m_pBuffers->GetSpaceUsed(proIndex, &inSize);
 
-	if (goodContent) {
-		void* inAddress = nullptr;
-		m_pBuffers->GetAddress(proIndex, &inAddress);
-		int inSize = 0;
-		m_pBuffers->GetSpaceUsed(proIndex, &inSize);
+	  // Width, height and pixel format are received from the camera
+	  const int width = m_pBuffers->GetWidth();
+	  const int height = m_pBuffers->GetHeight();
+	  const auto format = m_pBuffers->GetFormat();
+	  const int outSize = width * height;
 
-		// Width, height and pixel format are received from the camera
-		const int width = m_pBuffers->GetWidth();
-		const int height = m_pBuffers->GetHeight();
-		const auto format = m_pBuffers->GetFormat();
-		const int outSize = width * height;
+	  // Skip unexpected pixel format or incomplete frame
+	  goodContent = format == SapFormatMono8 && inSize == outSize;
 
-		// Skip unexpected pixel format or incomplete frame
-		goodContent = format == SapFormatMono8 && inSize == outSize;
-
-		if (goodContent) {
-			// Copy data to vector
-			std::vector<uint8_t> outBuffer(outSize);
-			std::copy((uint8_t*)inAddress, (uint8_t*)(inAddress)+outSize, outBuffer.begin());
+	  if (goodContent) {
+		  // Copy data to vector
+		  std::vector<uint8_t> outBuffer(outSize);
+		  std::copy((uint8_t*)inAddress, (uint8_t*)(inAddress)+outSize, outBuffer.begin());
 			
-			// Open the output file stream in binary mode
-			std::ofstream outputFile(fileName, std::ios::binary);
+		  // Open the output file stream in binary mode
+		  std::ofstream outputFile(fileName, std::ios::binary | std::ios::app);
 
-			// Set the buffer size to 1MB for faster I/O
-			outputFile.rdbuf()->pubsetbuf(nullptr, outSize);
+		  // Set the buffer size to 1MB for faster I/O
+		  outputFile.rdbuf()->pubsetbuf(nullptr, outSize);
 
-			// Print to csvFile
-			for (int i = 0; i < outSize; i += width) {
-				// Write the data to the file
-				outputFile.write(reinterpret_cast<char*>(&outBuffer[i]), width);
-			}
-			// Close the output file stream
-			outputFile.close();
-		}
-	}
+		  // Print to csvFile
+		  for (int i = 0; i < outSize; i += width) {
+			  // Write the data to the file
+			  outputFile.write(reinterpret_cast<char*>(&outBuffer[i]), width);
+		  }
+		  // Close the output file stream
+		  outputFile.close();
+	  }
+  }
 
-	return TRUE;
+  return TRUE;
 }
 
 // Information to pass to callbacks
 struct TransferContext
 {
-	std::atomic_int frameGrabCount = 0, frameProcessingCount = 0;
-	std::shared_ptr<SapMyProcessing> processing;
+  std::atomic_int frameGrabCount = 0, frameProcessingCount = 0;
+  std::shared_ptr<SapMyProcessing> processing;
 };
 
 void transferCallback(SapXferCallbackInfo* info)
 {
-	auto context = (TransferContext*)info->GetContext();
+  auto context = (TransferContext*)info->GetContext();
 
-	context->frameGrabCount++;
-	if (!info->IsTrash()) {
-		// Execute Run() for this frame
-		context->processing->ExecuteNext();
-	}
+  context->frameGrabCount++;
+  if (!info->IsTrash()) {
+	  // Execute Run() for this frame
+	  context->processing->ExecuteNext();
+  }
 }
 
 // Processing callback is called after Run()
 void processingCallback(SapProCallbackInfo* info)
 {
-	auto context = (TransferContext*)info->GetContext();
+  auto context = (TransferContext*)info->GetContext();
 
-	// Processing has finished
-	context->frameProcessingCount++;
+  // Processing has finished
+  context->frameProcessingCount++;
 }
 
 // Static Functions
@@ -133,182 +131,184 @@ static BOOL GetOptionsFromCommandLine(int argc, char *argv[], char *acqServerNam
 // Main
 int main(int argc, char* argv[])
 {
-   // Number of frames to receive from the camera
-   const int maxFrameCount = 30;
+  // Number of frames to receive from the camera
+  const int maxFrameCount = 3000;
 
-   // Configs
-   UINT32   acqDeviceNumber;
-   char*    acqServerName = new char[CORSERVER_MAX_STRLEN];
-   char*    configFilename = new char[MAX_PATH];
+  // Configs
+  UINT32   acqDeviceNumber;
+  char*    acqServerName = new char[CORSERVER_MAX_STRLEN];
+  char*    configFilename = new char[MAX_PATH];
 
-   printf("Sapera Console Grab Example (C++ version)\n");
+  printf("Sapera Console Grab Example (C++ version)\n");
 
-   // Call GetOptions to determine which acquisition device to use and which config
-   // file (CCF) should be loaded to configure it.
-   if (!GetOptions(argc, argv, acqServerName, &acqDeviceNumber, configFilename))
-   {
-      printf("\nPress any key to terminate\n");
-      CorGetch();
-      return 0;
-   }
+  // Call GetOptions to determine which acquisition device to use and which config file (CCF) should be loaded to configure it.
+  if (!GetOptions(argc, argv, acqServerName, &acqDeviceNumber, configFilename))
+  {
+    printf("\nPress any key to terminate\n");
+    CorGetch();
+    return 0;
+  }
 
-   // Get the filename from the user at runtime
-   std::cout << "Enter the name of the CSV file (w/out extension): ";
-   std::cin >> fileName;
+  // Get the filename from the user at runtime
+  std::cout << "Enter the name of the CSV file (w/out extension): ";
+  std::cin >> fileName;
+  std::string extension = ".bin";
+  fileName.append(extension);
 
-   // Struct to pass to callback
-   TransferContext context;
+  // Struct to pass to callback
+  TransferContext context;
 
-   SapAcquisition Acq;
-   SapAcqDevice AcqDevice;
-   SapBuffer Buffers;
+  SapAcquisition Acq;
+  SapAcqDevice AcqDevice;
+  SapBuffer Buffers;
 
-   std::unique_ptr<SapTransfer> Transfer;
+  std::unique_ptr<SapTransfer> Transfer;
 
-   SapLocation loc(acqServerName, acqDeviceNumber);
+  SapLocation loc(acqServerName, acqDeviceNumber);
 
-   if (SapManager::GetResourceCount(acqServerName, SapManager::ResourceAcq) > 0)
-   {
-      Acq = SapAcquisition(loc, configFilename);
+  if (SapManager::GetResourceCount(acqServerName, SapManager::ResourceAcq) > 0)
+  {
+    Acq = SapAcquisition(loc, configFilename);
 	  Buffers = SapBuffer(maxFrameCount, &Acq);
 
-	  Transfer = std::make_unique<SapAcqToBuf>(&Acq, &Buffers, transferCallback, &context);
+    // Pass TransferContext struct to the transfer and processing callbacks
+    Transfer = std::make_unique<SapAcqToBuf>(&Acq, &Buffers, transferCallback, &context);
 	  context.processing = std::make_shared<SapMyProcessing>(&Buffers, processingCallback, &context);
 
-      // Create acquisition object
-      if (!Acq.Create())
-         goto FreeHandles;
-   }
+    // Create acquisition object
+    if (!Acq.Create())
+      goto FreeHandles;
+  }
 
-   else if (SapManager::GetResourceCount(acqServerName, SapManager::ResourceAcqDevice) > 0)
-   {
-      if (strcmp(configFilename, "NoFile") == 0)
-         AcqDevice = SapAcqDevice(loc, FALSE);
-      else
-         AcqDevice = SapAcqDevice(loc, configFilename);
+  else if (SapManager::GetResourceCount(acqServerName, SapManager::ResourceAcqDevice) > 0)
+  {
+    if (strcmp(configFilename, "NoFile") == 0)
+      AcqDevice = SapAcqDevice(loc, FALSE);
+    else
+      AcqDevice = SapAcqDevice(loc, configFilename);
 
 	  Buffers = SapBuffer(maxFrameCount, &AcqDevice);
 
+    // Pass TransferContext struct to the transfer and processing callbacks
 	  Transfer = std::make_unique<SapAcqDeviceToBuf>(&AcqDevice, &Buffers, transferCallback, &context);
 	  context.processing = std::make_shared<SapMyProcessing>(&Buffers, processingCallback, &context);
 
-      // Create acquisition object
-      if (!AcqDevice.Create())
-         goto FreeHandles;
-   }
+    // Create acquisition object
+    if (!AcqDevice.Create())
+      goto FreeHandles;
+  }
 
-   // Create buffer object
-   if (!Buffers.Create())
-	   goto FreeHandles;
+  // Create buffer object
+  if (!Buffers.Create())
+    goto FreeHandles;
 
-   if (!Transfer->Create())
-	   goto FreeHandles;
+  // Create transfer object
+  if (!Transfer->Create())
+	  goto FreeHandles;
 
-   if (!context.processing->Create())
-	   goto FreeHandles;
+  // Create processing object
+  if (!context.processing->Create())
+	  goto FreeHandles;
 
-   // Grab
-   Transfer->Grab();
+  // Grab
+  Transfer->Grab();
 
-   // Wait for the camera to grab all frames
-   while (context.frameGrabCount < maxFrameCount);
+  // Wait for the camera to grab all frames
+  while (context.frameGrabCount < maxFrameCount);
 
-   // Stop grab
-   Transfer->Freeze();
-   if (!Transfer->Wait(5000))
-	   printf("Grab could not stop properly.\n");
+  // Stop grab
+  Transfer->Freeze();
+  if (!Transfer->Wait(5000))
+    printf("Grab could not stop properly.\n");
 
-   // Wait for processing to complete
-   while (context.frameProcessingCount < maxFrameCount);
+  // Wait for processing to complete
+  while (context.frameProcessingCount < maxFrameCount);
 
-   FreeHandles:
-   printf("Press any key to terminate\n");
-   CorGetch();
+  FreeHandles:
+  printf("Press any key to terminate\n");
+  CorGetch();
 
-   //unregister the acquisition callback
-   Acq.UnregisterCallback();
+  //unregister the acquisition callback
+  Acq.UnregisterCallback();
+   
+  // Destroy processing object
+  if (context.processing->Destroy()) return FALSE;
 
-   if (context.processing->Destroy()) return FALSE;
+  // Destroy transfer object
+  if (Transfer->Destroy()) return FALSE;
 
-   if (Transfer->Destroy()) return FALSE;
+  // Destroy buffer object
+  if (!Buffers.Destroy()) return FALSE;
 
-   // Destroy buffer object
-   if (!Buffers.Destroy()) return FALSE;
+  // Destroy acquisition object
+  if (!Acq.Destroy()) return FALSE;
 
-   // Destroy acquisition object
-   if (!Acq.Destroy()) return FALSE;
+  // Destroy acquisition object
+  if (!AcqDevice.Destroy()) return FALSE;
 
-   // Destroy acquisition object
-   if (!AcqDevice.Destroy()) return FALSE;
-
-   return 0;
+  return 0;
 }
 
 
 static BOOL GetOptions(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName)
 {
-   // Check if arguments were passed
-   if (argc > 1)
-      return GetOptionsFromCommandLine(argc, argv, acqServerName, pAcqDeviceIndex, configFileName);
-   else
-      return GetOptionsFromQuestions(acqServerName, pAcqDeviceIndex, configFileName);
+  // Check if arguments were passed
+  if (argc > 1)
+    return GetOptionsFromCommandLine(argc, argv, acqServerName, pAcqDeviceIndex, configFileName);
+  else
+    return GetOptionsFromQuestions(acqServerName, pAcqDeviceIndex, configFileName);
 }
 
 static BOOL GetOptionsFromCommandLine(int argc, char *argv[], char *acqServerName, UINT32 *pAcqDeviceIndex, char *configFileName)
 {
-   // Check the command line for user commands
-   if ((strcmp(argv[1], "/?") == 0) || (strcmp(argv[1], "-?") == 0))
-   {
-      // print help
-      printf("Usage:\n");
-      printf("GrabCPP [<acquisition server name> <acquisition device index> <config filename>]\n");
-      return FALSE;
-   }
+  // Check the command line for user commands
+  if ((strcmp(argv[1], "/?") == 0) || (strcmp(argv[1], "-?") == 0))
+  {
+    // print help
+    printf("Usage:\n");
+    printf("GrabCPP [<acquisition server name> <acquisition device index> <config filename>]\n");
+    return FALSE;
+  }
 
-   // Check if enough arguments were passed
-   if (argc < 4)
-   {
-      printf("Invalid command line!\n");
-      return FALSE;
-   }
+  // Check if enough arguments were passed
+  if (argc < 4){
+    printf("Invalid command line!\n");
+    return FALSE;
+  }
 
-   // Validate server name
-   if (SapManager::GetServerIndex(argv[1]) < 0)
-   {
-      printf("Invalid acquisition server name!\n");
-      return FALSE;
-   }
+  // Validate server name
+  if (SapManager::GetServerIndex(argv[1]) < 0){
+    printf("Invalid acquisition server name!\n");
+    return FALSE;
+  }
 
-   // Does the server support acquisition?
-   int deviceCount = SapManager::GetResourceCount(argv[1], SapManager::ResourceAcq);
-   int cameraCount = SapManager::GetResourceCount(argv[1], SapManager::ResourceAcqDevice);
+  // Does the server support acquisition?
+  int deviceCount = SapManager::GetResourceCount(argv[1], SapManager::ResourceAcq);
+  int cameraCount = SapManager::GetResourceCount(argv[1], SapManager::ResourceAcqDevice);
 
-   if (deviceCount + cameraCount == 0)
-   {
-      printf("This server does not support acquisition!\n");
-      return FALSE;
-   }
+  if (deviceCount + cameraCount == 0){
+    printf("This server does not support acquisition!\n");
+    return FALSE;
+  }
 
-   // Validate device index
-   if (atoi(argv[2]) < 0 || atoi(argv[2]) >= deviceCount + cameraCount)
-   {
-      printf("Invalid acquisition device index!\n");
-      return FALSE;
-   }
+  // Validate device index
+  if (atoi(argv[2]) < 0 || atoi(argv[2]) >= deviceCount + cameraCount){
+    printf("Invalid acquisition device index!\n");
+    return FALSE;
+  }
 
-   // Verify that the specified config file exist
-   OFSTRUCT of = { 0 };
-   if (OpenFile(argv[3], &of, OF_EXIST) == HFILE_ERROR)
-   {
-      printf("The specified config file (%s) is invalid!\n", argv[3]);
-      return FALSE;
-   }
+  // Verify that the specified config file exist
+  OFSTRUCT of = { 0 };
+  if (OpenFile(argv[3], &of, OF_EXIST) == HFILE_ERROR){
+    printf("The specified config file (%s) is invalid!\n", argv[3]);
+    return FALSE;
+  }
 
-   // Fill-in output variables
-   CorStrncpy(acqServerName, argv[1], CORSERVER_MAX_STRLEN);
-   *pAcqDeviceIndex = atoi(argv[2]);
-   CorStrncpy(configFileName, argv[3], MAX_PATH);
+  // Fill-in output variables
+  CorStrncpy(acqServerName, argv[1], CORSERVER_MAX_STRLEN);
+  *pAcqDeviceIndex = atoi(argv[2]);
+  CorStrncpy(configFileName, argv[3], MAX_PATH);
 
-   return TRUE;
+  return TRUE;
 }
 

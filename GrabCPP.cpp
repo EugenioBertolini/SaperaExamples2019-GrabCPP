@@ -311,4 +311,3 @@ static BOOL GetOptionsFromCommandLine(int argc, char *argv[], char *acqServerNam
 
   return TRUE;
 }
-
